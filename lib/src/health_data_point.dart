@@ -25,21 +25,21 @@ class HealthDataPoint {
       this._sourceName) {
     // set the value to minutes rather than the category
     // returned by the native API
-    if (type == HealthDataType.MINDFULNESS ||
-        type == HealthDataType.HEADACHE_UNSPECIFIED ||
-        type == HealthDataType.HEADACHE_NOT_PRESENT ||
-        type == HealthDataType.HEADACHE_MILD ||
-        type == HealthDataType.HEADACHE_MODERATE ||
-        type == HealthDataType.HEADACHE_SEVERE ||
-        type == HealthDataType.SLEEP_IN_BED ||
-        type == HealthDataType.SLEEP_ASLEEP ||
-        type == HealthDataType.SLEEP_AWAKE ||
-        type == HealthDataType.SLEEP_DEEP ||
-        type == HealthDataType.SLEEP_LIGHT ||
-        type == HealthDataType.SLEEP_REM ||
-        type == HealthDataType.SLEEP_OUT_OF_BED) {
-      this._value = _convertMinutes();
-    }
+    // if (type == HealthDataType.MINDFULNESS ||
+    //     type == HealthDataType.HEADACHE_UNSPECIFIED ||
+    //     type == HealthDataType.HEADACHE_NOT_PRESENT ||
+    //     type == HealthDataType.HEADACHE_MILD ||
+    //     type == HealthDataType.HEADACHE_MODERATE ||
+    //     type == HealthDataType.HEADACHE_SEVERE ||
+    //     type == HealthDataType.SLEEP_IN_BED ||
+    //     type == HealthDataType.SLEEP_ASLEEP ||
+    //     type == HealthDataType.SLEEP_AWAKE ||
+    //     type == HealthDataType.SLEEP_DEEP ||
+    //     type == HealthDataType.SLEEP_LIGHT ||
+    //     type == HealthDataType.SLEEP_REM ||
+    //     type == HealthDataType.SLEEP_OUT_OF_BED) {
+    //   this._value = _convertMinutes();
+    // }
   }
 
   /// Converts dateTo - dateFrom to minutes.
