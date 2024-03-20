@@ -22,6 +22,7 @@ const List<HealthDataType> _dataTypeKeysIOS = [
 /// List of data types available on Android
 const List<HealthDataType> _dataTypeKeysAndroid = [
   HealthDataType.ACTIVE_ENERGY_BURNED,
+  HealthDataType.STEPS,
 ];
 
 /// Maps a [HealthDataType] to a [HealthDataUnit].
