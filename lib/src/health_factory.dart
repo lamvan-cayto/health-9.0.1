@@ -259,7 +259,7 @@ class HealthFactory {
     return stepsCount;
   }
 
-  Future<List<HeathData>> getTotalStepAndCaloriesInInterval(
+  Future<List<Walk>> getTotalStepAndCaloriesInInterval(
     DateTime startTime,
     DateTime endTime,
   ) async {
@@ -272,7 +272,7 @@ class HealthFactory {
       args,
     );
     if (stepsCount == null) return [];
-    return stepsCount.map((dynamic e) => HeathData.fromJson(e as Map<Object?, Object?>)).toList();
+    return stepsCount.map((dynamic e) => Walk.fromJson(e as Map<Object?, Object?>)).toList();
   }
 
   /// Write workout data to Apple Health

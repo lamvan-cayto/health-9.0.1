@@ -151,7 +151,7 @@ class _HealthAppState extends State<HealthApp> {
         HealthDataAccess.READ,
       ]);
     }
-    List<HeathData> steps = [];
+    List<Walk> steps = [];
 
     if (stepsPermission) {
       try {

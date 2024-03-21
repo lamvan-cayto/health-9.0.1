@@ -139,21 +139,21 @@ class HealthDataPoint {
   int get hashCode => Object.hash(value, unit, dateFrom, dateTo, type, platform, deviceId, sourceId, sourceName);
 }
 
-class HeathData {
+class Walk {
   final int steps;
   final double calories;
   final DateTime dateFrom;
   final DateTime dateTo;
 
-  HeathData({
+  Walk({
     this.steps = 0,
     this.calories = 0,
     required this.dateFrom,
     required this.dateTo,
   });
 
-  factory HeathData.fromJson(Map<Object?, Object?> json) {
-    return HeathData(
+  factory Walk.fromJson(Map<Object?, Object?> json) {
+    return Walk(
       steps: json['steps'] as int? ?? 0,
       calories: json['calories'] as double? ?? 0.0,
       dateFrom: DateTime.fromMillisecondsSinceEpoch(json['date_from'] as int),
