@@ -267,12 +267,19 @@ class HealthFactory {
       'startTime': startTime.millisecondsSinceEpoch,
       'endTime': endTime.millisecondsSinceEpoch
     };
-    final stepsCount = await _channel.invokeMethod<List<dynamic>>(
-      'getTotalStepAndCaloriesInInterval',
-      args,
-    );
-    if (stepsCount == null) return [];
-    return stepsCount.map((dynamic e) => Walk.fromJson(e as Map<Object?, Object?>)).toList();
+    try {
+      final stepsCount = await _channel.invokeMethod<List<dynamic>>(
+        'getTotalStepAndCaloriesInInterval',
+        args,
+      );
+      if (stepsCount == null) return [];
+      return stepsCount.map((dynamic e) => Walk.fromJson(e as Map<Object?, Object?>)).toList();
+    } on PlatformException catch (error) {
+      if (error.code == 'PERMISSION_DENIED') {
+        throw SecurityException(error.code);
+      }
+      rethrow;
+    }
   }
 
   /// Write workout data to Apple Health
