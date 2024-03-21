@@ -259,6 +259,22 @@ class HealthFactory {
     return stepsCount;
   }
 
+  Future<List<HeathData>> getTotalStepAndCaloriesInInterval(
+    DateTime startTime,
+    DateTime endTime,
+  ) async {
+    final args = <String, dynamic>{
+      'startTime': startTime.millisecondsSinceEpoch,
+      'endTime': endTime.millisecondsSinceEpoch
+    };
+    final stepsCount = await _channel.invokeMethod<List<dynamic>>(
+      'getTotalStepAndCaloriesInInterval',
+      args,
+    );
+    if (stepsCount == null) return [];
+    return stepsCount.map((dynamic e) => HeathData.fromJson(e as Map<Object?, Object?>)).toList();
+  }
+
   /// Write workout data to Apple Health
   ///
   /// Returns true if successfully added workout data.

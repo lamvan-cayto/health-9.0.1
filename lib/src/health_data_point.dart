@@ -13,16 +13,8 @@ class HealthDataPoint {
   String _sourceId;
   String _sourceName;
 
-  HealthDataPoint(
-      this._value,
-      this._type,
-      this._unit,
-      this._dateFrom,
-      this._dateTo,
-      this._platform,
-      this._deviceId,
-      this._sourceId,
-      this._sourceName) {
+  HealthDataPoint(this._value, this._type, this._unit, this._dateFrom, this._dateTo, this._platform, this._deviceId,
+      this._sourceId, this._sourceName) {
     // set the value to minutes rather than the category
     // returned by the native API
     // if (type == HealthDataType.MINDFULNESS ||
@@ -61,15 +53,11 @@ class HealthDataPoint {
 
     return HealthDataPoint(
         healthValue,
-        HealthDataType.values
-            .firstWhere((element) => element.name == json['data_type']),
-        HealthDataUnit.values
-            .firstWhere((element) => element.name == json['unit']),
+        HealthDataType.values.firstWhere((element) => element.name == json['data_type']),
+        HealthDataUnit.values.firstWhere((element) => element.name == json['unit']),
         DateTime.parse(json['date_from']),
         DateTime.parse(json['date_to']),
-        PlatformTypeJsonValue.keys.toList()[PlatformTypeJsonValue.values
-            .toList()
-            .indexOf(json['platform_type'])],
+        PlatformTypeJsonValue.keys.toList()[PlatformTypeJsonValue.values.toList().indexOf(json['platform_type'])],
         json['device_id'],
         json['source_id'],
         json['source_name']);
@@ -148,6 +136,28 @@ class HealthDataPoint {
   }
 
   @override
-  int get hashCode => Object.hash(value, unit, dateFrom, dateTo, type, platform,
-      deviceId, sourceId, sourceName);
+  int get hashCode => Object.hash(value, unit, dateFrom, dateTo, type, platform, deviceId, sourceId, sourceName);
+}
+
+class HeathData {
+  final int steps;
+  final double calories;
+  final DateTime dateFrom;
+  final DateTime dateTo;
+
+  HeathData({
+    this.steps = 0,
+    this.calories = 0,
+    required this.dateFrom,
+    required this.dateTo,
+  });
+
+  factory HeathData.fromJson(Map<Object?, Object?> json) {
+    return HeathData(
+      steps: json['steps'] as int? ?? 0,
+      calories: json['calories'] as double? ?? 0.0,
+      dateFrom: DateTime.fromMillisecondsSinceEpoch(json['date_from'] as int),
+      dateTo: DateTime.fromMillisecondsSinceEpoch(json['date_to'] as int),
+    );
+  }
 }

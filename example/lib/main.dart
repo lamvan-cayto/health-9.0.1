@@ -24,6 +24,7 @@ enum AppState {
   DATA_NOT_ADDED,
   DATA_NOT_DELETED,
   STEPS_READY,
+  STEPS_CALO_READY,
 }
 
 class _HealthAppState extends State<HealthApp> {
@@ -116,7 +117,7 @@ class _HealthAppState extends State<HealthApp> {
 
     if (stepsPermission) {
       try {
-        steps = await health.getTotalStepsInInterval(midnight, now);
+        steps = await health.getTotalStepsInInterval(midnight.subtract(Duration(days: 7)), now);
       } catch (error) {
         print("Caught exception in getTotalStepsInInterval: $error");
       }
@@ -126,6 +127,49 @@ class _HealthAppState extends State<HealthApp> {
       setState(() {
         _nofSteps = (steps == null) ? 0 : steps;
         _state = (steps == null) ? AppState.NO_DATA : AppState.STEPS_READY;
+      });
+    } else {
+      print("Authorization not granted - error in authorization");
+      setState(() => _state = AppState.DATA_NOT_FETCHED);
+    }
+  }
+
+  Future fetchStepAndCaloData() async {
+
+    // get steps for today (i.e., since midnight)
+    final now = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day);
+
+    bool stepsPermission =
+        await health.hasPermissions([HealthDataType.STEPS, HealthDataType.ACTIVE_ENERGY_BURNED]) ?? false;
+    if (!stepsPermission) {
+      stepsPermission = await health.requestAuthorization([
+        HealthDataType.STEPS,
+        HealthDataType.ACTIVE_ENERGY_BURNED,
+      ], permissions: [
+        HealthDataAccess.READ,
+        HealthDataAccess.READ,
+      ]);
+    }
+    List<HeathData> steps = [];
+
+    if (stepsPermission) {
+      try {
+        steps = await health.getTotalStepAndCaloriesInInterval(midnight.subtract(Duration(days: 7)), now);
+      } catch (error) {
+        print("Caught exception in getTotalStepsInInterval: $error");
+      }
+
+
+      steps.forEach((element) {
+        print('Total number of steps: ${element.steps}');
+        print('Total number of calories: ${element.calories}');
+        print('Total number of calories: ${element.dateFrom}');
+      });
+
+      setState(() {
+        // _nofSteps = (steps == null) ? 0 : steps;
+        _state = (steps.isEmpty) ? AppState.NO_DATA : AppState.STEPS_CALO_READY;
       });
     } else {
       print("Authorization not granted - error in authorization");
@@ -230,6 +274,10 @@ class _HealthAppState extends State<HealthApp> {
     return Text('Total number of steps: $_nofSteps');
   }
 
+  Widget _stepsAndCaloFetched() {
+    return Text('Total number of steps: $_nofSteps');
+  }
+
   Widget _dataNotAdded() {
     return Text('Failed to add data');
   }
@@ -259,6 +307,8 @@ class _HealthAppState extends State<HealthApp> {
       return _dataNotAdded();
     else if (_state == AppState.DATA_NOT_DELETED)
       return _dataNotDeleted();
+    else if (_state == AppState.STEPS_CALO_READY)
+      return _stepsAndCaloFetched();
     else
       return _contentNotFetched();
   }
@@ -287,6 +337,10 @@ class _HealthAppState extends State<HealthApp> {
                   TextButton(
                       onPressed: fetchStepData,
                       child: Text("Fetch Step Data", style: TextStyle(color: Colors.white)),
+                      style: ButtonStyle(backgroundColor: MaterialStatePropertyAll(Colors.blue))),
+                  TextButton(
+                      onPressed: fetchStepAndCaloData,
+                      child: Text("Fetch Step And Calories", style: TextStyle(color: Colors.white)),
                       style: ButtonStyle(backgroundColor: MaterialStatePropertyAll(Colors.blue))),
                   TextButton(
                       onPressed: revokeAccess,
