@@ -3,12 +3,14 @@ package cachet.plugins.health
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.NonNull
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectClient.Companion.SDK_AVAILABLE
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
@@ -40,7 +42,16 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.ceil
 
-const val CHANNEL_NAME = "flutter_health"
+private const val CHANNEL_NAME = "flutter_health"
+private const val MIN_SUPPORTED_SDK = Build.VERSION_CODES.O_MR1
+private const val STEPS = "STEPS"
+private const val AGGREGATE_STEP_COUNT = "AGGREGATE_STEP_COUNT"
+private const val ACTIVE_ENERGY_BURNED = "ACTIVE_ENERGY_BURNED"
+private const val WORKOUT = "WORKOUT"
+private val PERMISSION = setOf(
+    HealthPermission.getReadPermission(StepsRecord::class),
+    HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+)
 
 class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandler, ActivityResultListener, Result,
     ActivityAware, FlutterPlugin {
@@ -49,23 +60,28 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
     private var activity: Activity? = null
     private var context: Context? = null
     private var threadPoolExecutor: ExecutorService? = null
-
-    private var useHealthConnectIfAvailable: Boolean = false
     private var healthConnectRequestPermissionsLauncher: ActivityResultLauncher<Set<String>>? = null
     private var healthConnectAvailable = false
-    private var healthConnectStatus = HealthConnectClient.SDK_UNAVAILABLE
     private lateinit var healthConnectClient: HealthConnectClient
 
     private lateinit var scope: CoroutineScope
 
-    private var STEPS = "STEPS"
-    private var AGGREGATE_STEP_COUNT = "AGGREGATE_STEP_COUNT"
-    private var ACTIVE_ENERGY_BURNED = "ACTIVE_ENERGY_BURNED"
-    private var WORKOUT = "WORKOUT"
 
+    override fun onMethodCall(call: MethodCall, result: Result) {
+        when (call.method) {
+            "useHealthConnectIfAvailable" -> useHealthConnectIfAvailable(result)
+            "hasPermissions" -> hasPermissions(result)
+            "requestAuthorization" -> requestAuthorization(result)
+            "getData" -> getData(call, result)
+            "getTotalStepsInInterval" -> getTotalStepsInInterval(call, result)
+            "getTotalStepAndCaloriesInInterval" -> getTotalStepAndCaloriesInInterval(call, result)
+            else -> result.notImplemented()
+        }
+    }
 
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+        Log.i("FLUTTER_HEALTH", "onAttachedToEngine")
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, CHANNEL_NAME)
         channel?.setMethodCallHandler(this)
@@ -73,8 +89,13 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
         threadPoolExecutor = Executors.newFixedThreadPool(4)
         checkAvailability()
         if (healthConnectAvailable) {
+            Log.i("FLUTTER_HEALTH", "HealthConnectClient Created")
             healthConnectClient = HealthConnectClient.getOrCreate(flutterPluginBinding.applicationContext)
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        return false
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -120,10 +141,6 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
         handler?.post { mResult?.error(errorCode, errorMessage, errorDetails) }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        return false
-    }
-
 
     private fun onHealthConnectPermissionCallback(permissionGranted: Set<String>) {
         if (permissionGranted.isEmpty()) {
@@ -138,7 +155,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
     }
 
     private fun getData(call: MethodCall, result: Result) {
-        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+        if (healthConnectAvailable) {
             val dataType = call.argument<String>("dataTypeKey")!!
             val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
             val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
@@ -245,14 +262,14 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
 
 
     private fun hasPermissions(result: Result) {
-        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+        checkAvailability()
+        Log.i("FLUTTER_HEALTH", "hasPermissions")
+        if (healthConnectAvailable) {
+            healthConnectClient = HealthConnectClient.getOrCreate(context!!)
             scope.launch {
                 result.success(
                     healthConnectClient.permissionController.getGrantedPermissions().containsAll(
-                        listOf(
-                            HealthPermission.getReadPermission(StepsRecord::class),
-                            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
-                        )
+                        PERMISSION
                     ),
                 )
             }
@@ -265,45 +282,39 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
      * with the the READ or READ_WRITE permission type.
      */
     private fun requestAuthorization(result: Result) {
+        Log.i("FLUTTER_HEALTH", "requestAuthorization")
         if (context == null) {
             result.success(false)
             return
         }
         mResult = result
 
-        if (useHealthConnectIfAvailable && healthConnectAvailable) {
-            if (healthConnectRequestPermissionsLauncher == null) {
-                result.success(false)
-                Log.i("FLUTTER_HEALTH", "Permission launcher not found")
-                return
-            }
-            healthConnectRequestPermissionsLauncher!!.launch(
-                listOf(
-                    HealthPermission.getReadPermission(StepsRecord::class),
-                    HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
-                ).toSet()
-            )
-            return
+        Log.i("FLUTTER_HEALTH", "launching permission request")
+        try {
+            healthConnectRequestPermissionsLauncher?.launch(PERMISSION)
+        } catch (e: Exception) {
+            Log.i("FLUTTER_HEALTH", "Error launching permission request", e)
+            result.success(false)
         }
+        return
     }
 
     private fun getTotalStepsInInterval(call: MethodCall, result: Result) {
         val start = call.argument<Long>("startTime")!!
         val end = call.argument<Long>("endTime")!!
 
-        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+        if (healthConnectAvailable) {
             getStepsHealthConnect(start, end, result)
             return
         }
     }
 
 
-
     private fun getTotalStepAndCaloriesInInterval(call: MethodCall, result: Result) {
         val start = call.argument<Long>("startTime")!!
         val end = call.argument<Long>("endTime")!!
 
-        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+        if (healthConnectAvailable) {
             getStepsAndCaloriesHealthConnect(start, end, result)
             return
         }
@@ -351,6 +362,10 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
         } catch (e: Exception) {
             Log.i("FLUTTER_HEALTH::ERROR", "unable to return steps")
             Log.i("EXCEPTION", e.message.toString())
+            if (e is SecurityException) {
+                result.error("PERMISSION_DENIED", "Permission denied", null)
+                return@launch
+            }
             result.success(null)
         }
     }
@@ -376,14 +391,18 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
     }
 
     private fun checkAvailability() {
-        healthConnectStatus = HealthConnectClient.getSdkStatus(context!!)
-        healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
+        val healthConnectAvailability = when {
+            HealthConnectClient.getSdkStatus(context!!) == SDK_AVAILABLE -> HealthConnectAvailability.INSTALLED
+            isSupported() -> HealthConnectAvailability.NOT_INSTALLED
+            else -> HealthConnectAvailability.NOT_SUPPORTED
+        }
+        healthConnectAvailable = healthConnectAvailability == HealthConnectAvailability.INSTALLED
     }
 
     private fun useHealthConnectIfAvailable(result: Result) {
-        useHealthConnectIfAvailable = true
         result.success(null)
     }
+
     private fun convertRecord(record: Any): List<Map<String, Any>> {
         val metadata = (record as Record).metadata
         when (record) {
@@ -411,26 +430,13 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
         }
     }
 
-    private fun getHCData(call: MethodCall, result: Result) {
-
-    }
-
     /**
      *  Handle calls from the MethodChannel
      */
-    override fun onMethodCall(call: MethodCall, result: Result) {
-        when (call.method) {
-            "useHealthConnectIfAvailable" -> useHealthConnectIfAvailable(result)
-            "hasPermissions" -> hasPermissions(result)
-            "requestAuthorization" -> requestAuthorization(result)
-            "getData" -> getData(call, result)
-            "getTotalStepsInInterval" -> getTotalStepsInInterval(call, result)
-            "getTotalStepAndCaloriesInInterval" -> getTotalStepAndCaloriesInInterval(call, result)
-            else -> result.notImplemented()
-        }
-    }
+
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        Log.i("FLUTTER_HEALTH", "onAttachedToActivity")
         if (channel == null) {
             return
         }
@@ -438,14 +444,14 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
         activity = binding.activity
 
 
-        if (healthConnectAvailable) {
-            val requestPermissionActivityContract = PermissionController.createRequestPermissionResultContract()
+        Log.i("FLUTTER_HEALTH", "HealthConnectClient createRequestPermissionResultContract")
+        val requestPermissionActivityContract = PermissionController.createRequestPermissionResultContract()
 
-            healthConnectRequestPermissionsLauncher =
-                (activity as ComponentActivity).registerForActivityResult(requestPermissionActivityContract) { granted ->
-                    onHealthConnectPermissionCallback(granted);
-                }
-        }
+        healthConnectRequestPermissionsLauncher =
+            (activity as ComponentActivity).registerForActivityResult(requestPermissionActivityContract) { granted ->
+                onHealthConnectPermissionCallback(granted);
+            }
+
 
     }
 
@@ -590,4 +596,13 @@ class HealthPlugin(private var channel: MethodChannel? = null) : MethodCallHandl
         ACTIVE_ENERGY_BURNED to ActiveCaloriesBurnedRecord::class,
         WORKOUT to ExerciseSessionRecord::class,
     )
+
+    private fun isSupported() = Build.VERSION.SDK_INT >= MIN_SUPPORTED_SDK
+
+}
+
+enum class HealthConnectAvailability {
+    INSTALLED,
+    NOT_INSTALLED,
+    NOT_SUPPORTED
 }
